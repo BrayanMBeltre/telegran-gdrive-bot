@@ -4,8 +4,7 @@
   "description": "telegram-googleDrive-bot",
   "main": "index.js",
   "scripts": {
-    "index": "nodemon index.js",
-    "bot": "nodemon bot.js"
+    "dev": "nodemon index.js"
   },
   "author": "BrayanMBeltre",
   "license": "ISC",

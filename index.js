@@ -1,107 +1,154 @@
-const { google } = require("googleapis");
+require("dotenv").config();
+const { Telegraf, Markup, Composer } = require("telegraf");
 const path = require("path");
 const fs = require("fs");
-const mime = require("mime-types");
-const axios = require("axios").default;
-
-require("dotenv").config();
-
-//TODO add git.ignore
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REDIRECT_URI = process.env.REDIRECT_URI;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
-
-const oAuth2Client = new google.auth.OAuth2(
-  CLIENT_ID,
-  CLIENT_SECRET,
-  REDIRECT_URI
-);
-
-oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
-
-const drive = google.drive({
-  version: "v3",
-  auth: oAuth2Client,
-});
-
-// const fileName = "templarAssasin.jpg";
-// const filePath = path.join(__dirname, fileName);
-
-async function getFileFromTelegram(url) {
-  const response = await axios({
-    url,
-    method: "get",
-    responseType: "stream",
-  });
-
-  return new Promise((resolve, reject) => {
-    resolve(response.data);
-    reject("error" + reject);
-  });
-}
-
-async function upploadFile(fileName, fileType, file) {
-  try {
-    const response = await drive.files.create({
-      requestBody: {
-        name: fileName,
-        mimeType: fileType,
-      },
-      media: {
-        body: file,
-        mimeType: fileType,
-      },
-    });
-
-    console.log(response.data);
-    return response.data;
-  } catch (error) {
-    console.log(`Error message: ${error.message}`);
-  }
-}
-
-async function deleteFile(fileId) {
-  try {
-    const response = await drive.files.delete({
-      fileId: fileId,
-    });
-
-    console.log(response.data, response.status);
-  } catch (error) {
-    console.log(error.message);
-  }
-}
-
-async function generatePublicUrl(fileId) {
-  try {
-    await drive.permissions.create({
-      fileId: fileId,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-    });
-
-    const result = await drive.files.get({
-      fileId: fileId,
-      fields: "webViewLink, webContentLink",
-    });
-    console.log(result.data);
-  } catch (error) {
-    console.log(error.message);
-  }
-}
-
-module.exports = {
+const {
   getFileFromTelegram,
   upploadFile,
   generatePublicUrl,
-  deleteFile,
-  generatePublicUrl,
-};
+} = require("./gdrive");
+const { default: axios } = require("axios");
 
-// downloadFile();
-//generatePublicUrl("1oEmeCXc7Jd4JKJFk5zaDocu1GSSEAt6o");
-//upploadFile();
-//deleteFile(1oEmeCXc7Jd4JKJFk5zaDocu1GSSEAt6o);
+const token = process.env.BOT_TOKEN;
+const bot = new Telegraf(token);
+//bot.use(Telegraf.log());
+
+bot.start((ctx) => ctx.reply(`Deep link payload: ${ctx.startPayload}`));
+
+bot.command("subir", (ctx) => {
+  ctx.reply("what do you whant to upload?", {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      Markup.button.callback("File", "upload"),
+      Markup.button.callback("Photo", "upload"),
+    ]),
+  });
+});
+
+bot.action("upload", async (ctx) => {
+  ctx.reply("Send me the file");
+  bot.on("document", async (ctx) => {
+    ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+    const { file_name, mime_type, file_id } = ctx.message.document;
+
+    try {
+      const { href } = await ctx.telegram.getFileLink(file_id);
+      const data = await getFileFromTelegram(href);
+      const response = await upploadFile(file_name, mime_type, data);
+      const { webViewLink } = await generatePublicUrl(response.id);
+
+      ctx.reply(
+        `${response.name} has been uploaded!`,
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([Markup.button.url("URL", webViewLink)]),
+        },
+        { reply_to_message_id: ctx.message.message_id }
+      );
+    } catch (error) {
+      console.log(error);
+      ctx.reply("something bad happen try again");
+    }
+    ctx.reply("afuera del try");
+  });
+});
+
+bot.command("upload", (ctx) => {
+  ctx.reply("Send me the file");
+  bot.on("document", async (ctx) => {
+    ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+    const { file_name, mime_type, file_id } = ctx.message.document;
+
+    try {
+      const { href } = await ctx.telegram.getFileLink(file_id);
+      const data = await getFileFromTelegram(href);
+      const response = await upploadFile(file_name, mime_type, data);
+      const { webViewLink } = await generatePublicUrl(response.id);
+
+      ctx.reply(
+        `${response.name} has been uploaded!`,
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([Markup.button.url("URL", webViewLink)]),
+        },
+        { reply_to_message_id: ctx.message.message_id }
+      );
+    } catch (error) {
+      console.log(error);
+      ctx.reply("something bad happen try again");
+    }
+    ctx.reply("afuera del try");
+  });
+});
+
+bot.command("url", (ctx) => {
+  ctx.reply(
+    "Link to drive",
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        Markup.button.url("URL", process.env.DRIVE_URL),
+      ]),
+    },
+    { reply_to_message_id: ctx.message.message_id }
+  );
+});
+
+bot.hears("Hola", (ctx) =>
+  ctx.replyWithHTML(
+    `Hola <b>${ctx.from.first_name}</b>, ¿qué tal estás?. Tu ID en Telegram es: <b>${ctx.message.from.id}</b>\n\nTu username es: <b>${ctx.message.from.username}</b> `
+  )
+);
+
+bot.command("inline", (ctx) => {
+  return ctx.reply("<b>Coke</b> or <i>Pepsi?</i>", {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      Markup.button.callback("Coke", "Coke"),
+      Markup.button.callback("Pepsi", "Pepsi"),
+    ]),
+  });
+});
+
+bot.command("caption", (ctx) => {
+  ctx.telegram.sendMessage(
+    ctx.message.chat.id,
+    ` has been uploaded!`,
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        Markup.button.callback("Coke", "Coke"),
+        Markup.button.url("google", "google.com"),
+      ]),
+    },
+    { reply_to_message_id: ctx.message.message_id }
+  );
+});
+
+bot.on("message", (ctx) => {
+  ctx.telegram.sendCopy(ctx.chat.id, ctx.message, {
+    parse_mode: "HTML",
+    ...Markup.inlineKeyboard([
+      Markup.button.callback("Delete this?", "delete"),
+    ]),
+  });
+});
+
+// bot.command("file", (ctx) => {
+//   ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+//   ctx.telegram.sendDocument(
+//     ctx.chat.id,
+//     { source: fs.createReadStream(photo), filename: "templarAssaasing.jpg" },
+//     { reply_to_message_id: ctx.message.message_id }
+//   );
+// });
+
+bot.catch((err) => {
+  console.log("Ooops", err);
+});
+
+bot.launch();
+
+// Enable graceful stop
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
