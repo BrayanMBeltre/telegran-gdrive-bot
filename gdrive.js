@@ -1,6 +1,7 @@
 require("dotenv").config();
 const { google } = require("googleapis");
 const axios = require("axios").default;
+const fs = require("fs");
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -64,6 +65,37 @@ async function deleteFile(fileId) {
   }
 }
 
+async function createFolder(folder_name) {
+  try {
+    const response = await drive.files.create({
+      requestBody: {
+        name: folder_name,
+        mimeType: "application/vnd.google-apps.folder",
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.log(`Error message: ${error.message}`);
+  }
+}
+
+async function listFolders(page_token) {
+  try {
+    const response = await drive.files.list({
+      corpora: "user",
+      q: "'1WqBuuqrLWyiIzlkTDU0637yC3-Ut-0hC' in parents",
+      pageSize: 15,
+      pageToken: page_token ? page_token : "",
+      fields: "nextPageToken, files(id, name, webViewLink)",
+    });
+
+    return response.data;
+  } catch (error) {
+    console.log(`Error message: ${error.message}`);
+  }
+}
+
 async function generatePublicUrl(fileId) {
   try {
     await drive.permissions.create({
@@ -90,4 +122,6 @@ module.exports = {
   generatePublicUrl,
   deleteFile,
   generatePublicUrl,
+  createFolder,
+  listFolders,
 };
