@@ -1,3 +1,4 @@
+// TODO Divide in bot{commands, stages, index}, gdrive
 require("dotenv").config();
 const {
   Telegraf,
@@ -5,32 +6,55 @@ const {
   session,
   Scenes: { BaseScene, Stage },
 } = require("telegraf");
+const {
+  createFolder,
+  getFileFromTelegram,
+  upploadFile,
+  generatePublicUrl,
+  listFolders,
+} = require("./gdrive");
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // KEYBOARDS
-const navigation_keyboard = (sceneName) => {
+
+const inlineUrlKeyboard = (btnName, url) => {
+  return Markup.inlineKeyboard([Markup.button.url(btnName, url)]);
+};
+
+const createKeyboard = (files, size, sceneName, nextPageToken) => {
   sceneName ? sceneName : "";
   const hideBack = sceneName ? false : true;
 
-  const keyboard = Markup.inlineKeyboard([
-    [
-      Markup.button.callback("Select subject", "setSubject"),
-      Markup.button.callback("select teacher", "setTeacher"),
-      Markup.button.callback("select teacher", "setTeacher"),
-    ],
-    [
-      Markup.button.callback("Select subject", "setSubject"),
-      Markup.button.callback("select teacher", "setTeacher"),
-      Markup.button.callback("select teacher", "setTeacher"),
-    ],
-    [
-      Markup.button.callback("Select subject", "setSubject"),
-      Markup.button.callback("select teacher", "setTeacher"),
-      Markup.button.callback("select teacher", "setTeacher"),
-    ],
-    [
-      Markup.button.callback("back", sceneName, hideBack),
-      Markup.button.callback("Cancel", "exit"),
-    ],
+  nextPageToken ? nextPageToken : "";
+  const hideNext = nextPageToken ? false : true;
+
+  const buttons = [];
+  const keyboard = [];
+
+  if (files) {
+    files.map((file) => {
+      buttons.push(Markup.button.callback(file.name, file.id));
+
+      bot.action(file.id, (ctx) => {
+        // ctx.deleteMessage(ctx.callbackQuery.message.message_id);
+        // ctx.session.folderId = file.id;
+        // ctx.scene.enter("listFoldersScene");
+        // console.log(ctx);
+        // console.log(file.id);
+        ctx.reply("File ID:" + file.id);
+      });
+    });
+
+    for (var i = 0; i < buttons.length; i += size) {
+      keyboard.push(buttons.slice(i, i + size));
+    }
+  }
+
+  keyboard.push([
+    Markup.button.callback("Back", sceneName, hideBack),
+    Markup.button.callback("Cancel", "exit"),
+    Markup.button.callback("Next Page", "NextPage", hideNext),
   ]);
 
   if (sceneName) {
@@ -40,68 +64,108 @@ const navigation_keyboard = (sceneName) => {
     });
   }
 
-  return keyboard;
-};
+  if (nextPageToken) {
+    bot.action("NextPage", async (ctx) => {
+      ctx.deleteMessage(ctx.callbackQuery.message.message_id);
 
+      ctx.scene.enter("listFoldersScene");
+    });
+  }
+
+  return Markup.inlineKeyboard(keyboard);
+};
 // KEYBOARDS
 
 // SCENES
-// SUBJECT SCENE
-const subjectScene = new BaseScene("subjectScene");
-
-subjectScene.enter((ctx) => {
-  ctx.reply("ENTERING SUBJECT SCENE");
-  ctx.reply("Select subject", navigation_keyboard(""));
+// CREATE FOLDER SCENE
+const createFolderScene = new BaseScene("createFolderScene");
+createFolderScene.enter((ctx) => {
+  // feedback
+  ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+  ctx.reply("Enter folder name", createKeyboard());
 });
 
-subjectScene.on("text", (ctx) => {
-  ctx.reply("ON SUBJECT SCENE");
-  ctx.session.subject = ctx.message.text;
+createFolderScene.on("text", async (ctx) => {
+  // feedback
+  ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
 
-  return ctx.scene.enter("teacherScene");
-});
+  const folder_name = ctx.message.text;
+  const response = await createFolder(folder_name);
+  const { webViewLink } = await generatePublicUrl(response.id);
 
-subjectScene.leave((ctx) => ctx.reply("LEAVING SUBJECT SCENE"));
+  ctx.reply(
+    `${response.name} has been created!`,
+    inlineUrlKeyboard("Open", webViewLink)
+  );
 
-// SUBJECT SCENE
-
-// TEACHER SCENE
-const teacherScene = new BaseScene("teacherScene");
-teacherScene.enter((ctx) => {
-  ctx.reply("ENTERING TEACHER SCENE");
-  ctx.reply("Select teacher", navigation_keyboard("subjectScene"));
-});
-
-teacherScene.on("text", (ctx) => {
-  ctx.reply("ON TEACHER SCENE");
-  ctx.session.teacher = ctx.message.text;
   return ctx.scene.leave();
 });
 
-teacherScene.leave((ctx) => {
-  ctx.reply("LEAVING TEACHER SCENE");
+// LIST FOLDERS SCENE
+
+const listFoldersScene = new BaseScene("listFoldersScene");
+listFoldersScene.enter(async (ctx) => {
+  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
+  const { files, nextPageToken } = await listFolders(
+    ctx.session.folderId,
+    ctx.session.pageToken
+  );
+  ctx.session.pageToken = nextPageToken;
+
+  ctx.reply("Select Subject", createKeyboard(files, 2, null, nextPageToken));
 });
-// TEACHER SCENE
+
 // SCENES
 
-const stage = new Stage([subjectScene, teacherScene]);
-stage.action("exit", (ctx) => ctx.scene.leave());
-
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const stage = new Stage([createFolderScene, listFoldersScene]);
+stage.action("exit", async (ctx) => {
+  await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
+  ctx.scene.leave();
+});
 bot.use(session());
 bot.use(stage.middleware());
 
-bot.command("/info", (ctx) =>
-  ctx.reply(
-    `Your subject is ${ctx.session?.subject} and your teacher is ${ctx.session?.teacher}`
-  )
-);
-bot.command("/find", (ctx) => ctx.scene.enter("subjectScene"));
+// COMMANDS
+bot.command("/scene1", (ctx) => ctx.scene.enter("createFolderScene"));
 
-// bot.action("cancel", async (ctx) => {
-//   await ctx.answerCbQuery("Your wish is my command");
-//   await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-//   ctx.scene.leave("teacherScene");
-// });
+bot.command("/scene2", (ctx) => ctx.scene.enter("listFoldersScene"));
+// COMMANDS
+
+bot.command("upload", (ctx) => {
+  ctx.reply("Send me the file");
+  bot.on("document", async (ctx) => {
+    ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+    const { file_name, mime_type, file_id } = ctx.message.document;
+
+    try {
+      const { href } = await ctx.telegram.getFileLink(file_id);
+      const data = await getFileFromTelegram(href);
+      const response = await upploadFile(file_name, mime_type, data);
+      const { webViewLink } = await generatePublicUrl(response.id);
+
+      ctx.reply(
+        `${response.name} has been uploaded!`,
+        {
+          parse_mode: "HTML",
+          ...Markup.inlineKeyboard([Markup.button.url("URL", webViewLink)]),
+        },
+        { reply_to_message_id: ctx.message.message_id }
+      );
+    } catch (error) {
+      console.log(error);
+      ctx.reply("something bad happen try again");
+    }
+    ctx.reply("afuera del try");
+  });
+});
+
+bot.action("Teacher", (ctx) => {
+  ctx.reply("/wizard");
+});
 
 bot.launch();
+
+// Enable graceful stop
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));

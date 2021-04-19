@@ -16,6 +16,8 @@ const oAuth2Client = new google.auth.OAuth2(
 
 oAuth2Client.setCredentials({ refresh_token: REFRESH_TOKEN });
 
+const mainFolderId = "1WqBuuqrLWyiIzlkTDU0637yC3-Ut-0hC";
+
 const drive = google.drive({
   version: "v3",
   auth: oAuth2Client,
@@ -34,12 +36,13 @@ async function getFileFromTelegram(url) {
   }
 }
 
-async function upploadFile(file_name, mime_type, file) {
+async function uploadFile(file_name, mime_type, file) {
   try {
     const response = await drive.files.create({
       requestBody: {
         name: file_name,
         mimeType: mime_type,
+        // parents: [mainFolderId],
       },
       media: {
         body: file,
@@ -71,6 +74,7 @@ async function createFolder(folder_name) {
       requestBody: {
         name: folder_name,
         mimeType: "application/vnd.google-apps.folder",
+        parents: [mainFolderId],
       },
     });
 
@@ -80,11 +84,11 @@ async function createFolder(folder_name) {
   }
 }
 
-async function listFolders(page_token) {
+async function listFolders(folderId, page_token) {
   try {
     const response = await drive.files.list({
       corpora: "user",
-      q: "'1WqBuuqrLWyiIzlkTDU0637yC3-Ut-0hC' in parents",
+      q: `"${folderId || mainFolderId}" in parents and trashed = false`,
       pageSize: 15,
       pageToken: page_token ? page_token : "",
       fields: "nextPageToken, files(id, name, webViewLink)",
@@ -118,7 +122,7 @@ async function generatePublicUrl(fileId) {
 
 module.exports = {
   getFileFromTelegram,
-  upploadFile,
+  uploadFile,
   generatePublicUrl,
   deleteFile,
   generatePublicUrl,
