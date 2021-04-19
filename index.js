@@ -9,7 +9,7 @@ const {
 const {
   createFolder,
   getFileFromTelegram,
-  upploadFile,
+  uploadFile,
   generatePublicUrl,
   listFolders,
 } = require("./gdrive");
@@ -40,7 +40,7 @@ const createKeyboard = (files, size, sceneName, nextPageToken) => {
         // ctx.deleteMessage(ctx.callbackQuery.message.message_id);
         // ctx.session.folderId = file.id;
         // ctx.scene.enter("listFoldersScene");
-        // console.log(ctx);
+        console.log(file);
         // console.log(file.id);
         ctx.reply("File ID:" + file.id);
       });
@@ -105,12 +105,14 @@ createFolderScene.on("text", async (ctx) => {
 
 const listFoldersScene = new BaseScene("listFoldersScene");
 listFoldersScene.enter(async (ctx) => {
+  // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
   const { files, nextPageToken } = await listFolders(
     ctx.session.folderId,
     ctx.session.pageToken
   );
+
   ctx.session.pageToken = nextPageToken;
 
   ctx.reply("Select Subject", createKeyboard(files, 2, null, nextPageToken));
@@ -158,10 +160,6 @@ bot.command("upload", (ctx) => {
     }
     ctx.reply("afuera del try");
   });
-});
-
-bot.action("Teacher", (ctx) => {
-  ctx.reply("/wizard");
 });
 
 bot.launch();
