@@ -1,139 +1,107 @@
 require("dotenv").config();
-const { Telegraf, Markup } = require("telegraf");
 const {
-  createFolder,
-  getFileFromTelegram,
-  upploadFile,
-  generatePublicUrl,
-  listFolders,
-} = require("./gdrive");
+  Telegraf,
+  Markup,
+  session,
+  Scenes: { BaseScene, Stage },
+} = require("telegraf");
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+// KEYBOARDS
+const navigation_keyboard = (sceneName) => {
+  sceneName ? sceneName : "";
+  const hideBack = sceneName ? false : true;
 
-bot.start((ctx) => ctx.reply(`Deep link payload: ${ctx.startPayload}`));
+  const keyboard = Markup.inlineKeyboard([
+    [
+      Markup.button.callback("Select subject", "setSubject"),
+      Markup.button.callback("select teacher", "setTeacher"),
+      Markup.button.callback("select teacher", "setTeacher"),
+    ],
+    [
+      Markup.button.callback("Select subject", "setSubject"),
+      Markup.button.callback("select teacher", "setTeacher"),
+      Markup.button.callback("select teacher", "setTeacher"),
+    ],
+    [
+      Markup.button.callback("Select subject", "setSubject"),
+      Markup.button.callback("select teacher", "setTeacher"),
+      Markup.button.callback("select teacher", "setTeacher"),
+    ],
+    [
+      Markup.button.callback("back", sceneName, hideBack),
+      Markup.button.callback("Cancel", "exit"),
+    ],
+  ]);
 
-// FIXME need to work with command
-const createFolderDictionary = {};
-bot.command("createFolder", async (ctx) => {
-  if (createFolderDictionary[ctx.chat.id] === undefined) {
-    createFolderDictionary[ctx.chat.id] = {
-      ...createFolderDictionary[ctx.chat.id],
-      step: "set folder name",
-    };
-    ctx.reply("Write folder name");
-  } else if (createFolderDictionary[ctx.chat.id].step === "set folder name") {
-    createFolderDictionary[ctx.chat.id] = {
-      step: "done",
-      folder_name: ctx.message.text,
-    };
-
-    const { folder_name } = createFolderDictionary[ctx.chat.id];
-    const response = await createFolder(folder_name);
-    const { webViewLink } = await generatePublicUrl(response.id);
-
-    ctx.reply(
-      `${response.name} has been created!`,
-      {
-        parse_mode: "HTML",
-        ...Markup.inlineKeyboard([Markup.button.url("URL", webViewLink)]),
-      },
-      { reply_to_message_id: ctx.message.message_id }
-    );
-  }
-});
-
-bot.command("listFolders", async (ctx) => {
-  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-  const { files, nextPageToken } = await listFolders("");
-
-  ctx.reply("Select Subject", createKeyboard(files, 2));
-});
-
-bot.command("upload", (ctx) => {
-  ctx.reply("Send me the file");
-  bot.on("document", async (ctx) => {
-    ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
-    const { file_name, mime_type, file_id } = ctx.message.document;
-
-    try {
-      const { href } = await ctx.telegram.getFileLink(file_id);
-      const data = await getFileFromTelegram(href);
-      const response = await upploadFile(file_name, mime_type, data);
-      const { webViewLink } = await generatePublicUrl(response.id);
-
-      ctx.reply(
-        `${response.name} has been uploaded!`,
-        {
-          parse_mode: "HTML",
-          ...Markup.inlineKeyboard([Markup.button.url("URL", webViewLink)]),
-        },
-        { reply_to_message_id: ctx.message.message_id }
-      );
-    } catch (error) {
-      console.log(error);
-      ctx.reply("something bad happen try again");
-    }
-    ctx.reply("afuera del try");
-  });
-});
-
-const createKeyboard = (files, size) => {
-  const buttons = [];
-
-  files.map((file) => {
-    buttons.push(Markup.button.url(file.name, file.webViewLink));
-  });
-
-  const keyboard = [];
-
-  for (var i = 0; i < buttons.length; i += size) {
-    keyboard.push(buttons.slice(i, i + size));
+  if (sceneName) {
+    bot.action(sceneName, async (ctx) => {
+      await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
+      ctx.scene.enter(sceneName);
+    });
   }
 
-  return Markup.inlineKeyboard(keyboard);
+  return keyboard;
 };
 
-bot.action("Teacher", (ctx) => {
-  ctx.reply("/wizard");
+// KEYBOARDS
+
+// SCENES
+// SUBJECT SCENE
+const subjectScene = new BaseScene("subjectScene");
+
+subjectScene.enter((ctx) => {
+  ctx.reply("ENTERING SUBJECT SCENE");
+  ctx.reply("Select subject", navigation_keyboard(""));
 });
 
-// TODO Create Guide Menu
-// FIXME Only works with onText change this to command and then onText
-const messageDictionary = {};
-bot.command("wizard", (ctx) => {
-  if (messageDictionary[ctx.chat.id] === undefined) {
-    messageDictionary[ctx.chat.id] = {
-      ...messageDictionary[ctx.chat.id],
-      status: "subject set",
-    };
+subjectScene.on("text", (ctx) => {
+  ctx.reply("ON SUBJECT SCENE");
+  ctx.session.subject = ctx.message.text;
 
-    // create funtion to fill buttons
-    ctx.reply("Select Subject", keyboard);
-  } else if (messageDictionary[ctx.chat.id].status === "subject set") {
-    messageDictionary[ctx.chat.id] = {
-      ...messageDictionary[ctx.chat.id],
-      status: "teacher set",
-      subject: ctx.message.text,
-    };
-    // create funtion to fill buttons
-    ctx.reply("Select Teacher", keyboard);
-    // ctx.reply(`Your you selected ${ctx.message.text}. now select teacher`);
-  } else if (messageDictionary[ctx.chat.id].status === "teacher set") {
-    messageDictionary[ctx.chat.id] = {
-      ...messageDictionary[ctx.chat.id],
-      status: "done",
-      teacher: ctx.message.text,
-    };
-    const { teacher, subject } = messageDictionary[ctx.chat.id];
-    ctx.reply(`Subject: ${subject} and teacher: ${teacher}`);
-
-    // clear
-    delete messageDictionary[ctx.chat.id];
-  }
+  return ctx.scene.enter("teacherScene");
 });
+
+subjectScene.leave((ctx) => ctx.reply("LEAVING SUBJECT SCENE"));
+
+// SUBJECT SCENE
+
+// TEACHER SCENE
+const teacherScene = new BaseScene("teacherScene");
+teacherScene.enter((ctx) => {
+  ctx.reply("ENTERING TEACHER SCENE");
+  ctx.reply("Select teacher", navigation_keyboard("subjectScene"));
+});
+
+teacherScene.on("text", (ctx) => {
+  ctx.reply("ON TEACHER SCENE");
+  ctx.session.teacher = ctx.message.text;
+  return ctx.scene.leave();
+});
+
+teacherScene.leave((ctx) => {
+  ctx.reply("LEAVING TEACHER SCENE");
+});
+// TEACHER SCENE
+// SCENES
+
+const stage = new Stage([subjectScene, teacherScene]);
+stage.action("exit", (ctx) => ctx.scene.leave());
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
+bot.use(session());
+bot.use(stage.middleware());
+
+bot.command("/info", (ctx) =>
+  ctx.reply(
+    `Your subject is ${ctx.session?.subject} and your teacher is ${ctx.session?.teacher}`
+  )
+);
+bot.command("/find", (ctx) => ctx.scene.enter("subjectScene"));
+
+// bot.action("cancel", async (ctx) => {
+//   await ctx.answerCbQuery("Your wish is my command");
+//   await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
+//   ctx.scene.leave("teacherScene");
+// });
 
 bot.launch();
-
-// Enable graceful stop
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
