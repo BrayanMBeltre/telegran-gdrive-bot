@@ -35,13 +35,13 @@ async function getFileFromTelegram(url) {
   }
 }
 
-async function uploadFile(file_name, mime_type, file) {
+async function uploadFile(file_name, mime_type, file, folderId) {
   try {
     const response = await drive.files.create({
       requestBody: {
         name: file_name,
         mimeType: mime_type,
-        // parents: [MAIN_FOLDER_ID],
+        parents: [folderId],
       },
       media: {
         body: file,
@@ -87,14 +87,32 @@ async function listFolders(folderId, page_token) {
   try {
     const response = await drive.files.list({
       corpora: "user",
-      q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false and mimeType="application/vnd.google-apps.folder"`,
+      q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false and mimeType = "application/vnd.google-apps.folder"`,
       pageSize: 15,
       pageToken: page_token ? page_token : "",
-      fields: "nextPageToken, files(id, name, mimeType)",
+      fields: "nextPageToken, files(id, name)",
       orderBy: "name",
     });
 
     console.log(response.data)
+    return response.data;
+  } catch (error) {
+    console.log(`Error message: ${error.message}`);
+  }
+}
+
+async function listFiles(folderId, page_token) {
+  try {
+    const response = await drive.files.list({
+      corpora: "user",
+      q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false `,
+      pageSize: 15,
+      pageToken: page_token ? page_token : "",
+      fields: "nextPageToken, files(id, name, mimeType,webContentLink)",
+      orderBy: "name",
+    });
+
+    // console.log(response.data)
     return response.data;
   } catch (error) {
     console.log(`Error message: ${error.message}`);
@@ -106,7 +124,7 @@ async function generatePublicUrl(fileId) {
     await drive.permissions.create({
       fileId: fileId,
       requestBody: {
-        role: "reader",
+        role: "writer",
         type: "anyone",
       },
     });
@@ -128,4 +146,5 @@ module.exports = {
   generatePublicUrl,
   createFolder,
   listFolders,
+  listFiles
 };
