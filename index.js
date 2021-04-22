@@ -37,12 +37,10 @@ const createKeyboard = (files, size, sceneName, nextPageToken) => {
       buttons.push(Markup.button.callback(file.name, file.id));
 
       bot.action(file.id, (ctx) => {
-        // ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-        // ctx.session.folderId = file.id;
-        // ctx.scene.enter("listFoldersScene");
-        console.log(file);
-        // console.log(file.id);
-        ctx.reply("File ID:" + file.id);
+        ctx.deleteMessage(ctx.callbackQuery.message.message_id);
+        ctx.session.folderId = file.id;
+        ctx.scene.enter("listFoldersScene");
+
       });
     });
 
@@ -65,9 +63,9 @@ const createKeyboard = (files, size, sceneName, nextPageToken) => {
   }
 
   if (nextPageToken) {
-    bot.action("NextPage", async (ctx) => {
+  bot.action("NextPage", async (ctx) => {
       ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-
+      ctx.session.pageToken = nextPageToken;
       ctx.scene.enter("listFoldersScene");
     });
   }
@@ -101,22 +99,24 @@ createFolderScene.on("text", async (ctx) => {
   return ctx.scene.leave();
 });
 
-// LIST FOLDERS SCENE
+// LIST SUBJECTS SCENE
 
 const listFoldersScene = new BaseScene("listFoldersScene");
-listFoldersScene.enter(async (ctx) => {
+listFoldersScene.enter( async (ctx) => {
   // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
+  console.log(ctx.session.folderId)
 
   const { files, nextPageToken } = await listFolders(
     ctx.session.folderId,
     ctx.session.pageToken
   );
 
-  ctx.session.pageToken = nextPageToken;
-
   ctx.reply("Select Subject", createKeyboard(files, 2, null, nextPageToken));
-});
+
+})
+
 
 // SCENES
 
@@ -161,6 +161,20 @@ bot.command("upload", (ctx) => {
     ctx.reply("afuera del try");
   });
 });
+
+
+// const getFiles = async (fileId, tokenId) => {
+
+//   const response = await listFolders(
+//     fileId,
+//     tokenId,
+//   );
+
+//   console.log(response)
+// }
+
+// getFiles("1UnOWtz1Fh5sSjt7e9j5WKySMt1jR4TEu")
+
 
 bot.launch();
 

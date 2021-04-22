@@ -87,12 +87,14 @@ async function listFolders(folderId, page_token) {
   try {
     const response = await drive.files.list({
       corpora: "user",
-      q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false`,
+      q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false and mimeType="application/vnd.google-apps.folder"`,
       pageSize: 15,
       pageToken: page_token ? page_token : "",
-      fields: "nextPageToken, files(id, name, webViewLink, mimeType)",
+      fields: "nextPageToken, files(id, name, mimeType)",
+      orderBy: "name",
     });
 
+    console.log(response.data)
     return response.data;
   } catch (error) {
     console.log(`Error message: ${error.message}`);
