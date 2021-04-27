@@ -258,31 +258,6 @@ bot.command("/scene3", (ctx) => ctx.scene.enter("uploadFileScene"));
 bot.command("/scene4", (ctx) => ctx.scene.enter("listFilesScene"));
 // COMMANDS
 
-// const getFiles = async (fileId, tokenId) => {
-
-//   const { files } = await listFiles(
-//     fileId,
-//     tokenId,
-//   );
-
-//   const response = await generatePublicUrl(files[0].id)
-//   console.log(response)
-//   // console.log(files[0].id)
-
-
-// }
-
-// getFiles()
-
-//  ERRORS
-process.on("uncaughtException", function (error) {
-  console.log("\x1b[31m", "Exception: ", error, "\x1b[0m");
-});
-
-process.on("unhandledRejection", function (error, p) {
-  console.log("\x1b[31m", "Error: ", error.message, "\x1b[0m");
-});
-
 bot.launch();
 
 // Enable graceful stop
