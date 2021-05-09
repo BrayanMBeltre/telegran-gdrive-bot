@@ -61,19 +61,21 @@ async function deleteFile(fileId) {
       fileId: fileId,
     });
 
-    console.log(response.data, response.status);
+    // console.log(response.data, response.status);
   } catch (error) {
     console.log(error.message);
   }
 }
 
-async function createFolder(folder_name) {
+async function createFolder(folder_name, folderId) {
+  console.log(folderId)
   try {
     const response = await drive.files.create({
       requestBody: {
         name: folder_name,
         mimeType: "application/vnd.google-apps.folder",
-        parents: [MAIN_FOLDER_ID],
+        // FIXME can be better
+        parents: folderId ? [folderId] : [MAIN_FOLDER_ID],
       },
     });
 
@@ -88,13 +90,13 @@ async function listFolders(folderId, page_token) {
     const response = await drive.files.list({
       corpora: "user",
       q: `"${folderId || MAIN_FOLDER_ID}" in parents and trashed = false and mimeType = "application/vnd.google-apps.folder"`,
-      pageSize: 15,
+      pageSize: 16,
       pageToken: page_token ? page_token : "",
       fields: "nextPageToken, files(id, name)",
       orderBy: "name",
     });
 
-    console.log(response.data)
+    // console.log(response.data)
     return response.data;
   } catch (error) {
     console.log(`Error message: ${error.message}`);

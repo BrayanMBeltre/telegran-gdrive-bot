@@ -1,11 +1,13 @@
 // TODO Divide in bot{commands, stages, index}, gdrive
 require("dotenv").config();
+
 const {
   Telegraf,
   Markup,
   session,
-  Scenes: { BaseScene, Stage },
+  Scenes: { BaseScene, Stage, WizardScene },
 } = require("telegraf");
+
 const {
   createFolder,
   getFileFromTelegram,
@@ -23,267 +25,309 @@ const inlineUrlKeyboard = (btnName, url) => {
   return Markup.inlineKeyboard([Markup.button.url(btnName, url)]);
 };
 
-const createKeyboard = (files, size, sceneName, nextPageToken) => {
-  sceneName ? sceneName : "";
-  const hideBack = sceneName ? false : true;
-
-  nextPageToken ? nextPageToken : "";
-  const hideNext = nextPageToken ? false : true;
-
-  const buttons = [];
-  const keyboard = [];
-
-  if (files) {
-    files.map((file) => {
-      buttons.push(Markup.button.callback(file.name, file.id));
-
-      bot.action(file.id, (ctx) => {
-        ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-        ctx.session.folderId = file.id;
-        ctx.scene.enter("listFoldersScene");
-      });
-    });
-
-    for (var i = 0; i < buttons.length; i += size) {
-      keyboard.push(buttons.slice(i, i + size));
-    }
-  }
-
-  keyboard.push([
-    Markup.button.callback("Back", sceneName, hideBack),
-    Markup.button.callback("Cancel", "exit"),
-    Markup.button.callback("Next Page", "NextPage", hideNext),
-  ]);
-
-  if (sceneName) {
-    bot.action(sceneName, (ctx) => {
-      ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-      ctx.scene.enter(sceneName);
-    });
-  }
-
-  if (nextPageToken) {
-    bot.action("NextPage", (ctx) => {
-      ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-      ctx.session.pageToken = nextPageToken;
-      ctx.scene.enter("listFoldersScene");
-    });
-  }
-
-  return Markup.inlineKeyboard(keyboard);
+const cancelButton = () => {
+  return Markup.inlineKeyboard([Markup.button.callback("Cancel", "exit")]);
 };
 
-const createFilesKeyboard = (files, size, sceneName, nextPageToken) => {
-  sceneName ? sceneName : "";
-  const hideBack = sceneName ? false : true;
-
-  nextPageToken ? nextPageToken : "";
-  const hideNext = nextPageToken ? false : true;
-
-  const buttons = [];
-  const keyboard = [];
-
-  if (files) {
-    files.map((file) => {
-      buttons.push(Markup.button.callback(file.name, file.id));
-
-      bot.action(file.id, (ctx) => {
-        console.log("hello world")
-        console.log(file.mimeType)
-        ctx.replyWithDocument(file.webContentLink)
-      });
-    });
-
-    for (var i = 0; i < buttons.length; i += size) {
-      keyboard.push(buttons.slice(i, i + size));
-    }
-  }
-
-  keyboard.push([
-    Markup.button.callback("Back", sceneName, hideBack),
-    Markup.button.callback("Cancel", "exit"),
-    Markup.button.callback("Next Page", "NextPage", hideNext),
-  ]);
-
-  if (sceneName) {
-    bot.action(sceneName, (ctx) => {
-      ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-      ctx.scene.enter(sceneName);
-    });
-  }
-
-  if (nextPageToken) {
-    bot.action("NextPage", (ctx) => {
-      ctx.deleteMessage(ctx.callbackQuery.message.message_id);
-      ctx.session.pageToken = nextPageToken;
-      ctx.scene.enter("listFoldersScene");
-    });
-  }
-
-  return Markup.inlineKeyboard(keyboard);
-};
 // KEYBOARDS
 
 // SCENES
-// CREATE FOLDER SCENE
-const createFolderScene = new BaseScene("createFolderScene");
-createFolderScene.enter((ctx) => {
-  // feedback
-  ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
-  ctx.reply("Enter folder name", createKeyboard());
-});
 
-createFolderScene.on("text", async (ctx) => {
-  // feedback
-  ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+// FIXED document not showing
+// FIXED upload file folder destination
+// FIXED craete folders name cache
+// FIXED open folder in browser
+// FIXME auto rerun
+// FIXME add a back button when entering a folder
 
-  try {
-    const folder_name = ctx.message.text;
-    const response = await createFolder(folder_name);
-    const { webViewLink } = await generatePublicUrl(response.id);
+// NEW LIST FOLDERS SCENE
+const listFoldersScene = new BaseScene("listFoldersScene")
 
-    ctx.reply(`${response.name} has been created!`);
-    inlineUrlKeyboard("Open", webViewLink);
-  } catch (error) {
-    console.log(error);
-  }
+listFoldersScene.leave(ctx => {
+  console.log("leaving")
+})
 
-  return ctx.scene.leave();
-});
-
-// LIST SUBJECTS SCENE
-// FIXME error on next page selection
-const listFoldersScene = new BaseScene("listFoldersScene");
 listFoldersScene.enter(async (ctx) => {
+  ctx.session.folders = [];
+  ctx.session.folderId = "";
+  ctx.session.token = "";
+  ctx.session.index = 0;
+  ctx.session.deepCount = 0;
+  ctx.session.folderName = "";
+  ctx.session.photos = [];
+  ctx.session.documents = [];
+  ctx.session.others = [];
+
   // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
-  const { files, nextPageToken } = await listFolders(
-    ctx.session.folderId,
-    ctx.session.pageToken
-  );
-
-  ctx.reply(`Select subject`, createKeyboard(files, 2, null, nextPageToken));
-
-  return ctx.scene.leave();
-});
-
-// UPLOAD FILE SCENE
-const uploadFileScene = new BaseScene("uploadFileScene");
-uploadFileScene.enter((ctx) => {
-  // feedback
-  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-
-  ctx.reply("Select File", createKeyboard());
-});
-
-uploadFileScene.on("document", async (ctx) => {
-  // feedback
-  ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
-  const { file_name, mime_type, file_id } = ctx.message.document;
-  // const folderId = "1aDvFr2Y2aYs4V3P4fxxyMj_77O7Kytas"
-  const folderId = undefined
-
-  try {
-    const { href } = await ctx.telegram.getFileLink(file_id);
-    const data = await getFileFromTelegram(href);
-    const response = await uploadFile(file_name, mime_type, data, folderId);
-    const { webViewLink, webContentLink } = await generatePublicUrl(response.id);
-
-    ctx.reply(
-      `${response.name} has been uploaded!`, inlineUrlKeyboard("Download", webContentLink)
+  const getFiles = async (folder, pageToken) => {
+    const { files, nextPageToken } = await listFolders(
+      folder,
+      pageToken
     );
 
-    return ctx.scene.leave();
-  } catch (error) {
-    console.log(error);
-    ctx.reply("something bad happen try again");
+    ctx.session.folders.push(files)
+    ctx.session.token = nextPageToken
   }
-});
 
-uploadFileScene.on("photo", (ctx) => {
-  // feedback
-  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+  ctx.session.folders.length == 0 ? await getFiles() : "";
 
-  ctx.reply("you need to upload the photo like a file", createKeyboard());
-});
+  const showFiles = async (folderId) => {
+    const { files } = await listFiles(folderId)
+    let photos = [];
+    let documents = [];
+    let others = [];
 
-// LIST FILES SCENE
-const listFilesScene = new BaseScene("listFilesScene")
-listFilesScene.enter(async (ctx) => {
-  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+    // files.map(file => {
+    //   file.mimeType == "image/jpeg" ? photos.push(file) :
+    //     file.mimeType == "application/document" ? documents.push(file) :
+    //       others.push(file)
+    // })
+    files.map(file => {
+      file.mimeType == "image/jpeg" ? ctx.session.photos.push(file) :
+        file.mimeType == "application/pdf" ? ctx.session.documents.push(file) :
+          ctx.session.others.push(file)
+    })
 
-  const folderId = "1VlC1huKGIVWxbxRvIIqfx9P869XIKDts"
+    const hidePhotosButton = (ctx.session.photos.length <= 0)
+    const hideDocumentsButton = (ctx.session.documents.length <= 0)
+    const hideOthersButton = (ctx.session.others.length <= 0)
 
-  const { files } = await listFiles(folderId)
-  console.log(files)
+    await ctx.reply("Select", Markup.inlineKeyboard(
+      [
+        [
+          Markup.button.callback(`Show photos: ${ctx.session.photos.length}`, "photo", hidePhotosButton),
+        ],
+        [
+          Markup.button.callback(`Show documents: ${ctx.session.documents.length}`, "document", hideDocumentsButton),
+        ],
+        [
+          Markup.button.callback(`Show others: ${ctx.session.others.length}`, "other", hideOthersButton),
+        ],
+        [
+          Markup.button.callback(`Upload files in this folder`, "upload"),
+        ],
+        [
+          Markup.button.callback("Cancel", "exit")
+        ]
+      ]
+    ))
 
-  // ctx.reply(`Select subject`, createFilesKeyboard(files, 2, null, null));
+    bot.action("photo", (ctx) => {
+      // feedback
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.deleteMessage()
+      ctx.replyWithMediaGroup([
+        ...ctx.session.photos.map(photo => (
+          {
+            "media": photo.webContentLink,
+            "caption": "Photos",
+            "type": "photo"
 
-  ctx.replyWithMediaGroup([
+          }))
+      ])
 
-    ...files.map(file => (
-      {
-        "media": file.webContentLink,
-        "caption": file.name,
-        "type": "photo"
+    });
 
-      }))
+    bot.action("document", (ctx) => {
+      // feedback
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.deleteMessage()
+      ctx.replyWithMediaGroup([
+        ...ctx.session.documents.map(document => (
+          {
+            "media": document.webContentLink,
+            "caption": "Documents",
+            "type": "document"
 
-  ])
+          }))
+      ])
 
+    });
 
+    bot.action("other", async (ctx) => {
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.deleteMessage()
+      const { webViewLink } = await generatePublicUrl(ctx.session.folderId);
+      ctx.reply("Not available", inlineUrlKeyboard("Open in browser", webViewLink))
+    })
+
+    bot.action("upload", (ctx) => {
+      ctx.deleteMessage()
+      // feedback
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.reply("Select documents or photos as a file")
+
+      listFoldersScene.on("document", async (ctx) => {
+        // feedback
+        ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+        const { file_name, mime_type, file_id } = ctx.message.document;
+
+        try {
+          const { href } = await ctx.telegram.getFileLink(file_id);
+          const data = await getFileFromTelegram(href);
+          const response = await uploadFile(file_name, mime_type, data, ctx.session.folderId);
+          const { webViewLink, webContentLink } = await generatePublicUrl(response.id);
+
+          ctx.reply(`${response.name} has been uploaded!`);
+
+          return ctx.scene.leave();
+        } catch (error) {
+          console.log(error);
+          ctx.reply("something bad happen try again");
+        }
+      });
+
+      listFoldersScene.on("photo", (ctx) => {
+        // feedback
+        ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
+        ctx.reply("you need to upload the photo like a file", cancelButton());
+      });
+
+    });
+
+    return ctx.scene.leave();
+  }
+
+  const newKeyboard = (files, size) => {
+    const hideBack = (ctx.session.index == 0) ? true : false;
+    const hideNext = ctx.session.token ? false : true;
+
+    const buttons = [];
+    const keyboard = [];
+
+    if (files) {
+      files.map((file) => {
+        buttons.push(Markup.button.callback(file.name, file.id));
+
+        bot.action(file.id, async (ctx) => {
+          ctx.deleteMessage();
+          ctx.session.folders = [];
+          ctx.session.index = 0;
+          ctx.session.folderId = "";
+          ctx.session.photos = [];
+          ctx.session.documents = [];
+          ctx.session.others = [];
+          await getFiles(file.id)
+          ctx.session.folderId = file.id;
+          ctx.session.deepCount == 0 ? callMe() : showFiles(file.id);
+          ctx.session.deepCount += 1;
+        });
+      });
+
+      for (var i = 0; i < buttons.length; i += size) {
+        keyboard.push(buttons.slice(i, i + size));
+      }
+    }
+
+    keyboard.push(
+      [
+        Markup.button.callback(`Create new folder`, "createNewFolder", !hideNext),
+      ],
+      [
+        Markup.button.callback("Back", "Back", hideBack),
+        Markup.button.callback("Cancel", "exit"),
+        Markup.button.callback("Next", "Next", hideNext),
+      ]);
+
+    bot.action("createNewFolder", (ctx) => {
+      ctx.deleteMessage()
+      // feedback
+      ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+      ctx.reply("Type folder name")
+      listFoldersScene.on("text", async (ctx) => {
+        ctx.session.folderName = ctx.message.text;
+        // feedback
+        ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+        ctx.reply(`Folder name is ${ctx.session.folderName}?`,
+          Markup.inlineKeyboard(
+            [
+              Markup.button.callback("Cancel", "exit"),
+              Markup.button.callback("Confirm", "newFolder")
+            ]))
+
+        try {
+          bot.action("newFolder", async (ctx) => {
+            ctx.deleteMessage()
+            // feedback
+            ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+
+            const response = await createFolder(ctx.session.folderName, ctx.session.folderId);
+            const { webViewLink } = await generatePublicUrl(response.id);
+
+            ctx.reply(`${response.name} has been created!`);
+            inlineUrlKeyboard("Open", webViewLink);
+
+            return ctx.scene.leave();
+          })
+
+        } catch (error) {
+          console.log(error);
+        }
+
+        return ctx.scene.leave();
+      });
+    });
+
+    bot.action("Back", (ctx) => {
+      ctx.deleteMessage()
+      ctx.session.index -= 1
+      callMe()
+    });
+
+    bot.action("Next", async (ctx) => {
+      await getFiles(null, ctx.session.token)
+      ctx.deleteMessage()
+      ctx.session.index += 1
+      callMe()
+    });
+
+    return Markup.inlineKeyboard(keyboard);
+  };
+
+  const callMe = () => {
+    ctx.reply("Select", newKeyboard(ctx.session.folders[ctx.session.index], 2))
+  }
+
+  callMe()
 
 })
 
 // SCENES
 
-const stage = new Stage([createFolderScene, listFoldersScene, uploadFileScene, listFilesScene]);
+const stage = new Stage([listFoldersScene]);
 stage.action("exit", async (ctx) => {
   await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
   console.log("leaving stage");
-  ctx.session = {};
+  // ctx.session = {};
   ctx.scene.leave();
 });
 bot.use(session());
 bot.use(stage.middleware());
 
 // COMMANDS
-bot.command("/scene1", (ctx) => ctx.scene.enter("createFolderScene"));
 
 bot.command("/scene2", (ctx) => ctx.scene.enter("listFoldersScene"));
 
-bot.command("/scene3", (ctx) => ctx.scene.enter("uploadFileScene"));
-
-bot.command("/scene4", (ctx) => ctx.scene.enter("listFilesScene"));
 // COMMANDS
 
-// const getFiles = async (fileId, tokenId) => {
 
-//   const { files } = await listFiles(
-//     fileId,
-//     tokenId,
-//   );
-
-//   const response = await generatePublicUrl(files[0].id)
-//   console.log(response)
-//   // console.log(files[0].id)
-
-
-// }
-
-// getFiles()
+bot.launch();
 
 //  ERRORS
 process.on("uncaughtException", function (error) {
   console.log("\x1b[31m", "Exception: ", error, "\x1b[0m");
+  process.exit(1);
+  console.log("restarted")
 });
 
 process.on("unhandledRejection", function (error, p) {
   console.log("\x1b[31m", "Error: ", error.message, "\x1b[0m");
+  process.exit(1);
+  console.log("restarted")
 });
-
-bot.launch();
 
 // Enable graceful stop
 process.once("SIGINT", () => bot.stop("SIGINT"));
