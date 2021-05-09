@@ -31,17 +31,17 @@ const cancelButton = () => {
 
 // SCENES
 
-// FIXME show pdfs
+// FIXME pdf not showing
 // FIXME craete folders name cache
 // FIXME upload file without file in it
 // FIXME auto rerun
-// 1- pdf not showing
-// 2- add a back button when entering a folder
+// FIXME add a back button when entering a folder
 
 // NEW LIST FOLDERS SCENE
 const listFoldersScene = new BaseScene("listFoldersScene")
 listFoldersScene.enter(async (ctx) => {
   ctx.session.folders = [];
+  ctx.session.folderId = "";
   ctx.session.token = "";
   ctx.session.index = 0;
   ctx.session.deepCount = 0;
