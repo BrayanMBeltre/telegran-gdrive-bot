@@ -295,24 +295,46 @@ listFoldersScene.enter(async (ctx) => {
 
 const helpScene = new BaseScene("helpScene")
 
-helpScene.start((ctx) => {
+helpScene.enter((ctx) => {
   // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
-  ctx.reply("Write what happened to you");
+  // FIXME help message
+  ctx.replyWithMarkdownV2
+    (`
+      *Commands*
+/help \\- show this message
+/list \\- show all folders
+/report \\- report a bug
 
+*how to see files*
+1 \\- Run /list
+2 \\- Select subject
+3 \\- Select teacher
+4 \\- Select what do you whant to see
+photos \\- Only show photos in that folder
+documents \\- Only show pdfs in that folder
+other \\- The other elements will be shown in the browser
 
+*how to upload files \\(pdfs or photos\\)*
+*1* \\- Run /list
+*2* \\- Select subject
+*3* \\- Select teacher
+*4* \\- select upload files
+*5* \\- select 1 or more files
+    `)
 })
-
-helpScene.enter(async (ctx) => {
-
-})
-
 
 // REPORT SCENE
+const reportScene = new BaseScene("reportScene")
+
+reportScene.enter((ctx) => {
+  ctx.reply("Work In Progress.")
+})
+
 
 // SCENES
 
-const stage = new Stage([listFoldersScene]);
+const stage = new Stage([listFoldersScene, helpScene, reportScene]);
 stage.action("exit", async (ctx) => {
   await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
   console.log("leaving stage");
@@ -325,6 +347,8 @@ bot.use(stage.middleware());
 // COMMANDS
 
 bot.command("/list", (ctx) => ctx.scene.enter("listFoldersScene"));
+bot.command("/help", (ctx) => ctx.scene.enter("helpScene"));
+bot.command("/report", (ctx) => ctx.scene.enter("reportScene"));
 
 // COMMANDS
 
