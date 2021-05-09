@@ -43,10 +43,6 @@ const cancelButton = () => {
 // NEW LIST FOLDERS SCENE
 const listFoldersScene = new BaseScene("listFoldersScene")
 
-listFoldersScene.leave(ctx => {
-  console.log("leaving")
-})
-
 listFoldersScene.enter(async (ctx) => {
   ctx.session.folders = [];
   ctx.session.folderId = "";
@@ -295,6 +291,25 @@ listFoldersScene.enter(async (ctx) => {
 
 })
 
+// HELP SCENE
+
+const helpScene = new BaseScene("helpScene")
+
+helpScene.start((ctx) => {
+  // feedback
+  ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+  ctx.reply("Write what happened to you");
+
+
+})
+
+helpScene.enter(async (ctx) => {
+
+})
+
+
+// REPORT SCENE
+
 // SCENES
 
 const stage = new Stage([listFoldersScene]);
@@ -309,7 +324,7 @@ bot.use(stage.middleware());
 
 // COMMANDS
 
-bot.command("/scene2", (ctx) => ctx.scene.enter("listFoldersScene"));
+bot.command("/list", (ctx) => ctx.scene.enter("listFoldersScene"));
 
 // COMMANDS
 
