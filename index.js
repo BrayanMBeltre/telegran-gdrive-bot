@@ -1,4 +1,12 @@
 // TODO Divide in bot{commands, stages, index}, gdrive
+// FIXED document not showing
+// FIXED upload file folder destination
+// FIXED craete folders name cache
+// FIXED open folder in browser
+// FIXED change mediagroup to send more than 10 elements
+// FIXED auto rerun
+// TODO add a back button when entering a folder
+
 require("dotenv").config();
 
 const {
@@ -32,14 +40,6 @@ const cancelButton = () => {
 // KEYBOARDS
 
 // SCENES
-
-// FIXED document not showing
-// FIXED upload file folder destination
-// FIXED craete folders name cache
-// FIXED open folder in browser
-// FIXED change mediagroup to send more than 10 elements
-// FIXED auto rerun
-// FIXME add a back button when entering a folder
 
 // NEW LIST FOLDERS SCENE
 const listFoldersScene = new BaseScene("listFoldersScene")
