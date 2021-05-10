@@ -37,7 +37,8 @@ const cancelButton = () => {
 // FIXED upload file folder destination
 // FIXED craete folders name cache
 // FIXED open folder in browser
-// FIXME auto rerun
+// FIXED change mediagroup to send more than 10 elements
+// FIXED auto rerun
 // FIXME add a back button when entering a folder
 
 // NEW LIST FOLDERS SCENE
@@ -71,15 +72,7 @@ listFoldersScene.enter(async (ctx) => {
 
   const showFiles = async (folderId) => {
     const { files } = await listFiles(folderId)
-    let photos = [];
-    let documents = [];
-    let others = [];
 
-    // files.map(file => {
-    //   file.mimeType == "image/jpeg" ? photos.push(file) :
-    //     file.mimeType == "application/document" ? documents.push(file) :
-    //       others.push(file)
-    // })
     files.map(file => {
       file.mimeType == "image/jpeg" ? ctx.session.photos.push(file) :
         file.mimeType == "application/pdf" ? ctx.session.documents.push(file) :
@@ -114,15 +107,24 @@ listFoldersScene.enter(async (ctx) => {
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
       ctx.deleteMessage()
-      ctx.replyWithMediaGroup([
-        ...ctx.session.photos.map(photo => (
-          {
-            "media": photo.webContentLink,
-            "caption": "Photos",
-            "type": "photo"
 
-          }))
-      ])
+      const mediaGroup = () => {
+        ctx.replyWithMediaGroup([
+          ...ctx.session.photos.map(photo => (
+            {
+              "media": photo.webContentLink,
+              "type": "photo"
+            }))
+        ])
+      }
+
+      const sendMedia = () => {
+        ctx.session.photos.map(photo => (
+          ctx.replyWithPhoto(photo.webContentLink)
+        ))
+      }
+
+      ctx.session.photos.length <= 10 ? mediaGroup() : sendMedia();
 
     });
 
@@ -130,16 +132,24 @@ listFoldersScene.enter(async (ctx) => {
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
       ctx.deleteMessage()
-      ctx.replyWithMediaGroup([
-        ...ctx.session.documents.map(document => (
-          {
-            "media": document.webContentLink,
-            "caption": "Documents",
-            "type": "document"
 
-          }))
-      ])
+      const mediaGroup = () => {
+        ctx.replyWithMediaGroup([
+          ...ctx.session.documents.map(document => (
+            {
+              "media": document.webContentLink,
+              "type": "document"
+            }))
+        ])
+      }
 
+      const sendMedia = () => {
+        ctx.session.documents.map(document => (
+          ctx.replyWithDocument(document.webContentLink)
+        ))
+      }
+
+      ctx.session.documents.length <= 10 ? mediaGroup() : sendMedia();
     });
 
     bot.action("other", async (ctx) => {
@@ -298,30 +308,33 @@ const helpScene = new BaseScene("helpScene")
 helpScene.enter((ctx) => {
   // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
   // FIXME help message
-  ctx.replyWithMarkdownV2
-    (`
-      *Commands*
-/help \\- show this message
-/list \\- show all folders
-/report \\- report a bug
+  const message =
+    `
+  *Commands*
+  /help \\- show this message
+  /list \\- show all folders
+  /report \\- report a bug
 
-*how to see files*
-1 \\- Run /list
-2 \\- Select subject
-3 \\- Select teacher
-4 \\- Select what do you whant to see
-photos \\- Only show photos in that folder
-documents \\- Only show pdfs in that folder
-other \\- The other elements will be shown in the browser
+  *how to see files*
+  1 \\- Run /list
+  2 \\- Select subject
+  3 \\- Select teacher
+  4 \\- Select what do you whant to see
+  photos \\- Only show photos in that folder
+  documents \\- Only show pdfs in that folder
+  other \\- The other elements will be shown in the browser
 
-*how to upload files \\(pdfs or photos\\)*
-*1* \\- Run /list
-*2* \\- Select subject
-*3* \\- Select teacher
-*4* \\- select upload files
-*5* \\- select 1 or more files
-    `)
+  *how to upload files \\(pdfs or photos\\)*
+  *1* \\- Run /list
+  *2* \\- Select subject
+  *3* \\- Select teacher
+  *4* \\- select upload files
+  *5* \\- select 1 or more files
+  `
+
+  ctx.replyWithMarkdownV2(message)
 })
 
 // REPORT SCENE
@@ -346,12 +359,12 @@ bot.use(stage.middleware());
 
 // COMMANDS
 
-bot.command("/list", (ctx) => ctx.scene.enter("listFoldersScene"));
-bot.command("/help", (ctx) => ctx.scene.enter("helpScene"));
-bot.command("/report", (ctx) => ctx.scene.enter("reportScene"));
+bot.start((ctx) => ctx.scene.enter("helpScene"))
+bot.command("list", (ctx) => ctx.scene.enter("listFoldersScene"));
+bot.command(["start", "help"], (ctx) => ctx.scene.enter("helpScene"));
+bot.command("report", (ctx) => ctx.scene.enter("reportScene"));
 
 // COMMANDS
-
 
 bot.launch();
 
