@@ -1,20 +1,28 @@
 // TODO Divide in bot{commands, stages, index}, gdrive
+// FIXED document not showing
+// FIXED upload file folder destination
+// FIXED craete folders name cache
+// FIXED open folder in browser
+// FIXED change mediagroup to send more than 10 elements
+// FIXED auto rerun
+// TODO add a back button when entering a folder
+
 require("dotenv").config();
 
 const {
   Telegraf,
   Markup,
   session,
-  Scenes: { BaseScene, Stage, WizardScene },
+  Scenes: { BaseScene, Stage },
 } = require("telegraf");
 
 const {
-  createFolder,
   getFileFromTelegram,
   uploadFile,
-  generatePublicUrl,
+  createFolder,
   listFolders,
   listFiles,
+  generatePublicUrl
 } = require("./gdrive");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -33,18 +41,10 @@ const cancelButton = () => {
 
 // SCENES
 
-// FIXED document not showing
-// FIXED upload file folder destination
-// FIXED craete folders name cache
-// FIXED open folder in browser
-// FIXED change mediagroup to send more than 10 elements
-// FIXED auto rerun
-// FIXME add a back button when entering a folder
-
 // NEW LIST FOLDERS SCENE
-const listFoldersScene = new BaseScene("listFoldersScene")
+const listScene = new BaseScene("listScene")
 
-listFoldersScene.enter(async (ctx) => {
+listScene.enter(async (ctx) => {
   ctx.session.folders = [];
   ctx.session.folderId = "";
   ctx.session.token = "";
@@ -104,8 +104,10 @@ listFoldersScene.enter(async (ctx) => {
     ))
 
     bot.action("photo", (ctx) => {
+
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
       ctx.deleteMessage()
 
       const mediaGroup = () => {
@@ -129,8 +131,10 @@ listFoldersScene.enter(async (ctx) => {
     });
 
     bot.action("document", (ctx) => {
+
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
       ctx.deleteMessage()
 
       const mediaGroup = () => {
@@ -153,7 +157,10 @@ listFoldersScene.enter(async (ctx) => {
     });
 
     bot.action("other", async (ctx) => {
+
+      // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
       ctx.deleteMessage()
       const { webViewLink } = await generatePublicUrl(ctx.session.folderId);
       ctx.reply("Not available", inlineUrlKeyboard("Open in browser", webViewLink))
@@ -161,13 +168,17 @@ listFoldersScene.enter(async (ctx) => {
 
     bot.action("upload", (ctx) => {
       ctx.deleteMessage()
+
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
       ctx.reply("Select documents or photos as a file")
 
-      listFoldersScene.on("document", async (ctx) => {
+      listScene.on("document", async (ctx) => {
+
         // feedback
         ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
+
         const { file_name, mime_type, file_id } = ctx.message.document;
 
         try {
@@ -185,7 +196,8 @@ listFoldersScene.enter(async (ctx) => {
         }
       });
 
-      listFoldersScene.on("photo", (ctx) => {
+      listScene.on("photo", (ctx) => {
+
         // feedback
         ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
@@ -240,13 +252,17 @@ listFoldersScene.enter(async (ctx) => {
 
     bot.action("createNewFolder", (ctx) => {
       ctx.deleteMessage()
+
       // feedback
       ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
       ctx.reply("Type folder name")
-      listFoldersScene.on("text", async (ctx) => {
+      listScene.on("text", async (ctx) => {
         ctx.session.folderName = ctx.message.text;
+
         // feedback
         ctx.telegram.sendChatAction(ctx.chat.id, "typing");
+
         ctx.reply(`Folder name is ${ctx.session.folderName}?`,
           Markup.inlineKeyboard(
             [
@@ -257,6 +273,7 @@ listFoldersScene.enter(async (ctx) => {
         try {
           bot.action("newFolder", async (ctx) => {
             ctx.deleteMessage()
+
             // feedback
             ctx.telegram.sendChatAction(ctx.chat.id, "upload_document");
 
@@ -306,6 +323,7 @@ listFoldersScene.enter(async (ctx) => {
 const helpScene = new BaseScene("helpScene")
 
 helpScene.enter((ctx) => {
+
   // feedback
   ctx.telegram.sendChatAction(ctx.chat.id, "typing");
 
@@ -347,7 +365,7 @@ reportScene.enter((ctx) => {
 
 // SCENES
 
-const stage = new Stage([listFoldersScene, helpScene, reportScene]);
+const stage = new Stage([listScene, helpScene, reportScene]);
 stage.action("exit", async (ctx) => {
   await ctx.deleteMessage(ctx.callbackQuery.message.message_id);
   console.log("leaving stage");
@@ -360,7 +378,7 @@ bot.use(stage.middleware());
 // COMMANDS
 
 bot.start((ctx) => ctx.scene.enter("helpScene"))
-bot.command("list", (ctx) => ctx.scene.enter("listFoldersScene"));
+bot.command("list", (ctx) => ctx.scene.enter("listScene"));
 bot.command(["start", "help"], (ctx) => ctx.scene.enter("helpScene"));
 bot.command("report", (ctx) => ctx.scene.enter("reportScene"));
 

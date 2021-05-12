@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { google } = require("googleapis");
 const axios = require("axios").default;
-const fs = require("fs");
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -55,17 +54,17 @@ async function uploadFile(file_name, mime_type, file, folderId) {
   }
 }
 
-async function deleteFile(fileId) {
-  try {
-    const response = await drive.files.delete({
-      fileId: fileId,
-    });
+// async function deleteFile(fileId) {
+//   try {
+//     const response = await drive.files.delete({
+//       fileId: fileId,
+//     });
 
-    // console.log(response.data, response.status);
-  } catch (error) {
-    console.log(error.message);
-  }
-}
+//     return response.data;
+//   } catch (error) {
+//     console.log(`Error message: ${error.message}`);
+//   }
+// }
 
 async function createFolder(folder_name, folderId) {
   console.log(folderId)
@@ -96,7 +95,6 @@ async function listFolders(folderId, page_token) {
       orderBy: "name",
     });
 
-    // console.log(response.data)
     return response.data;
   } catch (error) {
     console.log(`Error message: ${error.message}`);
@@ -114,7 +112,6 @@ async function listFiles(folderId, page_token) {
       orderBy: "name",
     });
 
-    // console.log(response.data)
     return response.data;
   } catch (error) {
     console.log(`Error message: ${error.message}`);
@@ -135,6 +132,7 @@ async function generatePublicUrl(fileId) {
       fileId: fileId,
       fields: "webViewLink, webContentLink",
     });
+
     return result.data;
   } catch (error) {
     console.log(error.message);
@@ -144,9 +142,9 @@ async function generatePublicUrl(fileId) {
 module.exports = {
   getFileFromTelegram,
   uploadFile,
-  deleteFile,
-  generatePublicUrl,
+  // deleteFile,
   createFolder,
   listFolders,
-  listFiles
+  listFiles,
+  generatePublicUrl
 };
